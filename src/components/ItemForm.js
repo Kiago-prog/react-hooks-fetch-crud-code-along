@@ -1,35 +1,22 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 
-function ItemForm() {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("Produce");
+function ItemForm({ addItem }) {
+  const [itemName, setItemName] = useState('');
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    addItem({ name: itemName, isInCart: false });
+    setItemName('');
+  };
 
   return (
-    <form className="NewItem">
-      <label>
-        Name:
-        <input
-          type="text"
-          name="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-
-      <label>
-        Category:
-        <select
-          name="category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <option value="Produce">Produce</option>
-          <option value="Dairy">Dairy</option>
-          <option value="Dessert">Dessert</option>
-        </select>
-      </label>
-
-      <button type="submit">Add to List</button>
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={itemName}
+        onChange={(e) => setItemName(e.target.value)}
+      />
+      <button type="submit">Add Item</button>
     </form>
   );
 }

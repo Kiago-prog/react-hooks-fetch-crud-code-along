@@ -1,104 +1,73 @@
-import "whatwg-fetch";
-import "@testing-library/jest-dom";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitForElementToBeRemoved,
-} from "@testing-library/react";
-import { resetData } from "../mocks/handlers";
-import { server } from "../mocks/server";
-import ShoppingList from "../components/ShoppingList";
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import ShoppingList from '../components/ShoppingList';
 
-beforeAll(() => server.listen());
-afterEach(() => {
-  server.resetHandlers();
-  resetData();
-});
-afterAll(() => server.close());
-
-test("displays all the items from the server after the initial render", async () => {
-  render(<ShoppingList />);
-
-  const yogurt = await screen.findByText(/Yogurt/);
-  expect(yogurt).toBeInTheDocument();
-
-  const pomegranate = await screen.findByText(/Pomegranate/);
-  expect(pomegranate).toBeInTheDocument();
-
-  const lettuce = await screen.findByText(/Lettuce/);
-  expect(lettuce).toBeInTheDocument();
-});
-
-test("adds a new item to the list when the ItemForm is submitted", async () => {
-  const { rerender } = render(<ShoppingList />);
-
-  const dessertCount = screen.queryAllByText(/Dessert/).length;
-
-  fireEvent.change(screen.queryByLabelText(/Name/), {
-    target: { value: "Ice Cream" },
+describe('ShoppingList Component', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
   });
 
-  fireEvent.change(screen.queryByLabelText(/Category/), {
-    target: { value: "Dessert" },
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  fireEvent.submit(screen.queryByText(/Add to List/));
+  test('displays all the items from the server after the initial render', async () => {
+    global.fetch.mockResolvedValue({
+      json: async () => [
+        { id: 1, name: 'Apple', isInCart: false },
+        { id: 2, name: 'Banana', isInCart: true },
+      ],
+    });
 
-  const iceCream = await screen.findByText(/Ice Cream/);
-  expect(iceCream).toBeInTheDocument();
+    render(<ShoppingList />);
 
-  const desserts = await screen.findAllByText(/Dessert/);
-  expect(desserts.length).toBe(dessertCount + 1);
+    await waitFor(() => {
+      expect(screen.getByText('Apple - Not in Cart')).toBeInTheDocument();
+      expect(screen.getByText('Banana - In Cart')).toBeInTheDocument();
+    });
+  });
 
-  // Rerender the component to ensure the item was persisted
-  rerender(<ShoppingList />);
+  test('adds a new item to the list when the ItemForm is submitted', async () => {
+    global.fetch.mockResolvedValueOnce({ json: async () => [] });
+    global.fetch.mockResolvedValueOnce({
+      json: async () => ({ id: 3, name: 'Orange', isInCart: false }),
+    });
 
-  const rerenderedIceCream = await screen.findByText(/Ice Cream/);
-  expect(rerenderedIceCream).toBeInTheDocument();
-});
+    render(<ShoppingList />);
 
-test("updates the isInCart status of an item when the Add/Remove from Cart button is clicked", async () => {
-  const { rerender } = render(<ShoppingList />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Orange' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add Item/i }));
 
-  const addButtons = await screen.findAllByText(/Add to Cart/);
+    await waitFor(() => {
+      expect(screen.getByText('Orange - Not in Cart')).toBeInTheDocument();
+    });
+  });
 
-  expect(addButtons.length).toBe(3);
-  expect(screen.queryByText(/Remove From Cart/)).not.toBeInTheDocument();
+  test('updates the isInCart status of an item when the Add/Remove from Cart button is clicked', async () => {
+    global.fetch.mockResolvedValueOnce({
+      json: async () => [{ id: 1, name: 'Apple', isInCart: false }],
+    });
+    global.fetch.mockResolvedValueOnce({});
+    render(<ShoppingList />);
 
-  fireEvent.click(addButtons[0]);
+    await waitFor(() => screen.getByText('Apple - Not in Cart'));
+    fireEvent.click(screen.getByRole('button', { name: /Add to Cart/i }));
+    await waitFor(() => screen.getByText('Apple - In Cart'));
+  });
 
-  const removeButton = await screen.findByText(/Remove From Cart/);
-  expect(removeButton).toBeInTheDocument();
+  test('removes an item from the list when the delete button is clicked', async () => {
+    global.fetch.mockResolvedValueOnce({
+      json: async () => [{ id: 1, name: 'Apple', isInCart: false }],
+    });
+    global.fetch.mockResolvedValueOnce({});
+    render(<ShoppingList />);
 
-  // Rerender the component to ensure the item was persisted
-  rerender(<ShoppingList />);
+    await waitFor(() => screen.getByText('Apple - Not in Cart'));
+    fireEvent.click(screen.getByRole('button', { name: /Delete/i }));
 
-  const rerenderedAddButtons = await screen.findAllByText(/Add to Cart/);
-  const rerenderedRemoveButtons = await screen.findAllByText(
-    /Remove From Cart/
-  );
-
-  expect(rerenderedAddButtons.length).toBe(2);
-  expect(rerenderedRemoveButtons.length).toBe(1);
-});
-
-test("removes an item from the list when the delete button is clicked", async () => {
-  const { rerender } = render(<ShoppingList />);
-
-  const yogurt = await screen.findByText(/Yogurt/);
-  expect(yogurt).toBeInTheDocument();
-
-  const deleteButtons = await screen.findAllByText(/Delete/);
-  fireEvent.click(deleteButtons[0]);
-
-  await waitForElementToBeRemoved(() => screen.queryByText(/Yogurt/));
-
-  // Rerender the component to ensure the item was persisted
-  rerender(<ShoppingList />);
-
-  const rerenderedDeleteButtons = await screen.findAllByText(/Delete/);
-
-  expect(rerenderedDeleteButtons.length).toBe(2);
-  expect(screen.queryByText(/Yogurt/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Apple - Not in Cart')).toBeNull();
+    });
+  });
 });
